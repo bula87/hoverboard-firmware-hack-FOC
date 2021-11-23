@@ -248,6 +248,7 @@ void PWM_ISR_CH2_Callback(void);
 #define LED5_SET            (0x10)
 #define SENSOR1_SET         (0x01)
 #define SENSOR2_SET         (0x02)
+#define BOTH_SENSORS_SET    (0x03)
 #define SENSOR_MPU          (0x04)
 
 // RC iBUS switch definitions. Flysky FS-i6S has [SWA, SWB, SWC, SWD] = [2, 3, 3, 2] positions switch

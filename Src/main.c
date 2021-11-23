@@ -208,11 +208,124 @@ int main(void) {
   // Loop until button is released
   while(HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) { HAL_Delay(10); }
 
+  // WOJ TODO: CHECK WHERE TO PUT IT - if was replaced by something else
+  extern uint8_t ctrlModReq;
+  int16_t lastCmd = 0;
+  float lastSpeed = 0;
+  int16_t   tmp_cmd1 = 0;
+  int16_t   tmp_cmd2 = 0; 
+
+  float speedL = 0, speedR = 0;
+  float accel = 0;
+  float Kd, Ki, Kp;
+
+  int16_t timeout = 0;
+
+  // END 
+
   while(1) {
     if (buzzerTimer - buzzerTimer_prev > 16*DELAY_IN_MAIN_LOOP) {   // 1 ms = 16 ticks buzzerTimer
 
     readCommand();                        // Read Command: input1[inIdx].cmd, input2[inIdx].cmd
     calcAvgSpeed();                       // Calculate average measured speed: speedAvg, speedAvgAbs
+
+    #ifdef VARIANT_ONEWHEEL
+        
+        // WOJ TODO: check if we need this timeout, for now disable
+        if (timeoutFlgSerial == 0)
+          timeout ++;
+        else
+          timeout = 0;
+
+        if (Sideboard_L.sensors == BOTH_SENSORS_SET) // foot on sensor
+        {
+          //int scaling = sensor_data.complete.Angle >> 6;
+          //cmd2 = CLAMP(((scaling*scaling*scaling) >> 5) + (sensor_data.complete.Angle >> 1), INPUT_MIN, INPUT_MAX);  //speed
+          tmp_cmd2 = CLAMP(Sideboard_L.pitch, -32768, 32767);  //speed
+        }
+        else
+        {
+          tmp_cmd2 = 0;
+        }
+      
+          // ####### MOTOR ENABLING: only if no errors and foot switch pressed #######
+          if (enable == 0 && !rtY_Left.z_errCode && Sideboard_L.sensors == BOTH_SENSORS_SET)
+          {
+            // if we werent moving before, only turn on for low angles
+            if (/*speedAvgAbs > 10 ||*/ (tmp_cmd2 > -90 && tmp_cmd2 < 90))
+            {
+              beepCount(1, 24, 1);                    // make 2 beeps indicating the motor enable
+              HAL_Delay(20);
+              beepCount(1, 24, 1); 
+              
+              enable = 1;                       // enable motors
+            }        
+          } 
+
+          // ####### LOW-PASS FILTER #######
+          //rateLimiter16(cmd1, RATE, &steerRateFixdt);
+          //rateLimiter16(cmd2, RATE, &speedRateFixdt);
+          //filtLowPass32(steerRateFixdt >> 4, FILTER, &steerFixdt);
+          //filtLowPass32(speedRateFixdt >> 4, FILTER, &speedFixdt);
+          //steer = 0; //= (int16_t)(steerFixdt >> 20);  // convert fixed-point to integer
+          //speed = (int16_t)(speedFixdt >> 20);  // convert fixed-point to integer    
+
+
+          // ####### MIXER #######
+          // speedR = CLAMP((int)(speed * SPEED_COEFFICIENT -  steer * STEER_COEFFICIENT), -1000, 1000);
+          // speedL = CLAMP((int)(speed * SPEED_COEFFICIENT +  steer * STEER_COEFFICIENT), -1000, 1000);
+          //mixerFcn(speed << 4, steer << 4, &speedR, &speedL);   // This function implements the equations above
+          
+          // clamp both motors to same speed
+          int8_t pOnE = 0;
+          if (enable == 1) {
+          if (ctrlModReq == SPD_MODE) { // for speed mode (doesnt work well)
+             Kp = 0.035;  // critical at 0.7
+             Ki = 0.06;  // ncritcal at 0.08
+             Kd = 0.01;
+          } else if (ctrlModReq == VLT_MODE)
+          {
+             Kp = 0.5; // 0.4 works
+             Ki = 1.0;  // 0.7 works
+             Kd = 0.17; // 0.15 works
+          }
+          
+
+          int16_t input = -tmp_cmd2;
+          int16_t error = tmp_cmd2;
+          int16_t dinput = input - lastCmd;
+          accel = Ki * error;
+
+          if(!pOnE) accel-= Kp * dinput; 
+
+          float output;
+          if(pOnE) output = Kp * error; 
+          else output = 0;
+
+          output += accel - Kd * dinput;      
+          speedL = output;
+
+          } else {       
+            accel = 0;   // reset PID
+            speedL = 0;
+          }
+
+          // ####### SET OUTPUTS (if the target change is less than +/- 50) #######
+          if (/*(speedL > lastSpeedL-50 && speedL < lastSpeedL+50) && (speedR > lastSpeedR-50 && speedR < lastSpeedR+50) &&*/ timeout < TIMEOUT) {
+            #ifdef INVERT_L_DIRECTION
+              pwml = round(-speedL);
+            #else
+              pwml = speedL;
+            #endif
+          }
+          else {
+            char t[200];
+            sprintf(t, "Speed change rate to high, not setting new speed %f from old speed %f\r\n", speedL, lastSpeed);
+          }
+        lastCmd = tmp_cmd2;
+        lastSpeed = speedL;
+    #endif
+
 
     #ifndef VARIANT_TRANSPOTTER
       // ####### MOTOR ENABLING: Only if the initial input is very small (for SAFETY) #######

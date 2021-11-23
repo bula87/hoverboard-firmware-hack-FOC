@@ -9,7 +9,7 @@
 // Keil uVision: select desired variant from the Target drop down menu (to the right of the Load button)
 // Ubuntu: define the desired build variant here if you want to use make in console
 // or use VARIANT environment variable for example like "make -e VARIANT=VARIANT_NUNCHUK". Select only one at a time.
-#if !defined(PLATFORMIO)
+//#if !defined(PLATFORMIO)
   //#define VARIANT_ADC         // Variant for control via ADC input
   //#define VARIANT_USART       // Variant for Serial control via USART3 input
   //#define VARIANT_NUNCHUK     // Variant for Nunchuk controlled vehicle build
@@ -20,7 +20,8 @@
   //#define VARIANT_HOVERBOARD  // Variant for HOVERBOARD build
   //#define VARIANT_TRANSPOTTER // Variant for TRANSPOTTER build https://github.com/NiklasFauth/hoverboard-firmware-hack/wiki/Build-Instruction:-TranspOtter https://hackaday.io/project/161891-transpotter-ng
   //#define VARIANT_SKATEBOARD  // Variant for SKATEBOARD build
-#endif
+  #define VARIANT_ONEWHEEL      // Variant for ONEWHEEL build
+//#endif
 // ########################### END OF VARIANT SELECTION ############################
 
 
@@ -547,6 +548,34 @@
 #endif
 // ######################## END OF VARIANT_HOVERBOARD SETTINGS #########################
 
+// ############################ VARIANT_ONEWHEEL SETTINGS ############################
+// Communication:         [DONE]
+// Balancing controller:  [WORK IN PROGRESS]
+#ifdef VARIANT_ONEWHEEL
+  #define FLASH_WRITE_KEY     0x1008          // Flash memory writing key. Change this key to ignore the input calibrations from the flash memory and use the ones in config.h
+  #define SIDEBOARD_SERIAL_USART2 0           // left sensor board cable. Number indicates priority for dual-input. Disable if ADC or PPM is used! 
+  #define FEEDBACK_SERIAL_USART2
+  // Using only one sensor connected to left connector
+  //#define SIDEBOARD_SERIAL_USART3 0           // right sensor board cable. Number indicates priority for dual-input. Disable if I2C (nunchuk or lcd) is used!
+  //#define FEEDBACK_SERIAL_USART3
+  
+  // Trying to controll the board similar to original onewheel in TORQUE Mode
+  #undef  CTRL_MOD_REQ
+  #define CTRL_MOD_REQ        TRQ_MODE  // SKATEBOARD works best in TORQUE Mode
+  
+  // Using right sensor connector for debug
+  #define DEBUG_SERIAL_USART3         // right sensor cable debug
+  #define DEBUG_SERIAL_PROTOCOL       // uncomment this to send user commands to the board, change parameters and print specific signals (see comms.c for the user commands)
+
+  // If an iBUS RC receiver is connected to either Left Sideboard (AUX_INPUT) or Right Sideboard (PRI_INPUT)
+  // PRIMARY INPUT:          TYPE, MIN, MID, MAX, DEADBAND /* TYPE: 0:Disabled, 1:Normal Pot, 2:Middle Resting Pot, 3:Auto-detect */
+  #define PRI_INPUT1          3, -1000, 0, 1000, 0  // Priority Sideboard can be used to send commands via an iBUS Receiver connected to the sideboard
+  #define PRI_INPUT2          3, -1000, 0, 1000, 0  // Priority Sideboard can be used to send commands via an iBUS Receiver connected to the sideboard
+  #define AUX_INPUT1          3, -1000, 0, 1000, 0  // not used
+  #define AUX_INPUT2          3, -1000, 0, 1000, 0  // not used
+#endif
+// ######################## END OF VARIANT_ONEWHEEL SETTINGS #########################
+
 
 
 // ################################# VARIANT_TRANSPOTTER SETTINGS ############################
@@ -652,7 +681,7 @@
 
 // ############################### VALIDATE SETTINGS ###############################
 #if !defined(VARIANT_ADC) && !defined(VARIANT_USART) && !defined(VARIANT_NUNCHUK) && !defined(VARIANT_PPM) && !defined(VARIANT_PWM) && \
-    !defined(VARIANT_IBUS) && !defined(VARIANT_HOVERCAR) && !defined(VARIANT_HOVERBOARD) && !defined(VARIANT_TRANSPOTTER) && !defined(VARIANT_SKATEBOARD)
+    !defined(VARIANT_IBUS) && !defined(VARIANT_HOVERCAR) && !defined(VARIANT_ONEWHEEL) && !defined(VARIANT_HOVERBOARD) && !defined(VARIANT_TRANSPOTTER) && !defined(VARIANT_SKATEBOARD)
   #error Variant not defined! Please check platformio.ini or Inc/config.h for available variants.
 #endif
 

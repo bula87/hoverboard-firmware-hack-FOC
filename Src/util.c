@@ -1375,7 +1375,7 @@ void sideboardLeds(uint8_t *leds) {
  * In non-hoverboard variants, the sensors are used as push buttons.
  */
 void sideboardSensors(uint8_t sensors) {
-  #if !defined(VARIANT_HOVERBOARD) && (defined(SIDEBOARD_SERIAL_USART2) || defined(SIDEBOARD_SERIAL_USART3))
+  #if !defined(VARIANT_HOVERBOARD) && !defined(VARIANT_ONEWHEEL) && (defined(SIDEBOARD_SERIAL_USART2) || defined(SIDEBOARD_SERIAL_USART3))
     static uint8_t sensor1_index;                                 // holds the press index number for sensor1, when used as a button
     static uint8_t sensor1_prev,  sensor2_prev;
     uint8_t sensor1_trig = 0, sensor2_trig = 0;
