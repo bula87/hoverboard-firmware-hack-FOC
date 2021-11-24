@@ -211,17 +211,31 @@ int main(void) {
   // WOJ TODO: CHECK WHERE TO PUT IT - if was replaced by something else
   extern uint8_t ctrlModReq;
   int16_t lastCmd = 0;
-  float lastSpeed = 0;
-  int16_t   tmp_cmd1 = 0;
-  int16_t   tmp_cmd2 = 0; 
 
   float speedL = 0, speedR = 0;
   float accel = 0;
   float Kd, Ki, Kp;
+  int angleG = 0;
 
   int16_t timeout = 0;
 
   // END 
+
+  float Total_angle[2];
+float elapsedTime, time, timePrev;
+int i;
+float PID, pwmLeft, pwmRight, error, previous_error;
+float pid_p=0;
+float pid_i=0;
+float pid_d=0;
+////////////////////////PID CONSTANST/////////////////////
+float kp=25;
+float ki=0;
+float kd=0.8;
+float desired_angle = 0;//////////////TARGET ANGLE/////////////
+int mspeed = 10;
+
+  time = HAL_GetTick();
 
   while(1) {
     if (buzzerTimer - buzzerTimer_prev > 16*DELAY_IN_MAIN_LOOP) {   // 1 ms = 16 ticks buzzerTimer
@@ -230,100 +244,46 @@ int main(void) {
     calcAvgSpeed();                       // Calculate average measured speed: speedAvg, speedAvgAbs
 
     #ifdef VARIANT_ONEWHEEL
-        
-        // WOJ TODO: check if we need this timeout, for now disable
-        if (timeoutFlgSerial == 0)
-          timeout ++;
-        else
-          timeout = 0;
 
-        if (Sideboard_L.sensors == BOTH_SENSORS_SET) // foot on sensor
-        {
-          //int scaling = sensor_data.complete.Angle >> 6;
-          //cmd2 = CLAMP(((scaling*scaling*scaling) >> 5) + (sensor_data.complete.Angle >> 1), INPUT_MIN, INPUT_MAX);  //speed
-          tmp_cmd2 = CLAMP(Sideboard_L.pitch, -32768, 32767);  //speed
-        }
-        else
-        {
-          tmp_cmd2 = 0;
-        }
-      
-          // ####### MOTOR ENABLING: only if no errors and foot switch pressed #######
-          if (enable == 0 && !rtY_Left.z_errCode && Sideboard_L.sensors == BOTH_SENSORS_SET)
-          {
-            // if we werent moving before, only turn on for low angles
-            if (/*speedAvgAbs > 10 ||*/ (tmp_cmd2 > -90 && tmp_cmd2 < 90))
-            {
-              beepCount(1, 24, 1);                    // make 2 beeps indicating the motor enable
-              HAL_Delay(20);
-              beepCount(1, 24, 1); 
-              
-              enable = 1;                       // enable motors
-            }        
-          } 
+    timePrev = time;  
+    time = HAL_GetTick();  
+    elapsedTime = (time - timePrev) / 1000; 
+    
+    ////TOTAL_ANGLE[0] IS THE PITCH ANGLE WHICH WE NEED////////////
+    error = Sideboard_L.pitch - desired_angle; /////////////////ERROR CALCULATION////////////////////
+    ///////////////////////PROPORTIONAL ERROR//////////////
+    pid_p = kp*error;
+    ///////////////////////INTERGRAL ERROR/////////////////
+    pid_i = pid_i+(ki*error);  
+    ///////////////////////DIFFERENTIAL ERROR//////////////
+    pid_d = kd*((error - previous_error)/elapsedTime);
+    ///////////////////////TOTAL PID VALUE/////////////////
+    PID = pid_p + pid_d;
+    ///////////////////////UPDATING THE ERROR VALUE////////
+    previous_error = error;
+    //Serial.println(PID);                     //////////UNCOMMENT FOR DDEBUGGING//////////////
+    //delay(60);                               //////////UNCOMMENT FOR DDEBUGGING//////////////
+    //Serial.println(Total_angle[0]);          //////////UNCOMMENT FOR DDEBUGGING//////////////
+    /////////////////CONVERTING PID VALUES TO ABSOLUTE VALUES//////////////////////////////////
+    mspeed = abs(PID);
+    //Serial.println(mspeed);                  //////////UNCOMMENT FOR DDEBUGGING//////////////
+    ///////////////SELF EXPLANATORY///////////////
+    if(Total_angle[0]<0)
+      {
+       cmdL = mspeed; 
+       cmdR = mspeed;
+      }
+    if(Total_angle[0]>0)
+      {
+       cmdL = -mspeed;
+       cmdR = -mspeed;
+      }
+    if(Total_angle[0]>45)
+    standstillHold();
+    if(Total_angle[0]<-45)
+    standstillHold();
+    
 
-          // ####### LOW-PASS FILTER #######
-          //rateLimiter16(cmd1, RATE, &steerRateFixdt);
-          //rateLimiter16(cmd2, RATE, &speedRateFixdt);
-          //filtLowPass32(steerRateFixdt >> 4, FILTER, &steerFixdt);
-          //filtLowPass32(speedRateFixdt >> 4, FILTER, &speedFixdt);
-          //steer = 0; //= (int16_t)(steerFixdt >> 20);  // convert fixed-point to integer
-          //speed = (int16_t)(speedFixdt >> 20);  // convert fixed-point to integer    
-
-
-          // ####### MIXER #######
-          // speedR = CLAMP((int)(speed * SPEED_COEFFICIENT -  steer * STEER_COEFFICIENT), -1000, 1000);
-          // speedL = CLAMP((int)(speed * SPEED_COEFFICIENT +  steer * STEER_COEFFICIENT), -1000, 1000);
-          //mixerFcn(speed << 4, steer << 4, &speedR, &speedL);   // This function implements the equations above
-          
-          // clamp both motors to same speed
-          int8_t pOnE = 0;
-          if (enable == 1) {
-          if (ctrlModReq == SPD_MODE) { // for speed mode (doesnt work well)
-             Kp = 0.035;  // critical at 0.7
-             Ki = 0.06;  // ncritcal at 0.08
-             Kd = 0.01;
-          } else if (ctrlModReq == VLT_MODE)
-          {
-             Kp = 0.5; // 0.4 works
-             Ki = 1.0;  // 0.7 works
-             Kd = 0.17; // 0.15 works
-          }
-          
-
-          int16_t input = -tmp_cmd2;
-          int16_t error = tmp_cmd2;
-          int16_t dinput = input - lastCmd;
-          accel = Ki * error;
-
-          if(!pOnE) accel-= Kp * dinput; 
-
-          float output;
-          if(pOnE) output = Kp * error; 
-          else output = 0;
-
-          output += accel - Kd * dinput;      
-          speedL = output;
-
-          } else {       
-            accel = 0;   // reset PID
-            speedL = 0;
-          }
-
-          // ####### SET OUTPUTS (if the target change is less than +/- 50) #######
-          if (/*(speedL > lastSpeedL-50 && speedL < lastSpeedL+50) && (speedR > lastSpeedR-50 && speedR < lastSpeedR+50) &&*/ timeout < TIMEOUT) {
-            #ifdef INVERT_L_DIRECTION
-              pwml = round(-speedL);
-            #else
-              pwml = speedL;
-            #endif
-          }
-          else {
-            char t[200];
-            sprintf(t, "Speed change rate to high, not setting new speed %f from old speed %f\r\n", speedL, lastSpeed);
-          }
-        lastCmd = tmp_cmd2;
-        lastSpeed = speedL;
     #endif
 
 
@@ -386,30 +346,30 @@ int main(void) {
         }
       #endif
 
-      // ####### LOW-PASS FILTER #######
-      rateLimiter16(input1[inIdx].cmd , RATE, &steerRateFixdt);
-      rateLimiter16(input2[inIdx].cmd , RATE, &speedRateFixdt);
-      filtLowPass32(steerRateFixdt >> 4, FILTER, &steerFixdt);
-      filtLowPass32(speedRateFixdt >> 4, FILTER, &speedFixdt);
-      steer = (int16_t)(steerFixdt >> 16);  // convert fixed-point to integer
-      speed = (int16_t)(speedFixdt >> 16);  // convert fixed-point to integer
+      // // ####### LOW-PASS FILTER #######
+      // rateLimiter16(input1[inIdx].cmd , RATE, &steerRateFixdt);
+      // rateLimiter16(input2[inIdx].cmd , RATE, &speedRateFixdt);
+      // filtLowPass32(steerRateFixdt >> 4, FILTER, &steerFixdt);
+      // filtLowPass32(speedRateFixdt >> 4, FILTER, &speedFixdt);
+      // steer = (int16_t)(steerFixdt >> 16);  // convert fixed-point to integer
+      // speed = (int16_t)(speedFixdt >> 16);  // convert fixed-point to integer
 
-      // ####### VARIANT_HOVERCAR #######
-      #ifdef VARIANT_HOVERCAR
-      if (inIdx == CONTROL_ADC) {               // Only use use implementation below if pedals are in use (ADC input)
-        if (!MultipleTapBrake.b_multipleTap) {  // Check driving direction
-          speed = steer + speed;                // Forward driving: in this case steer = Brake, speed = Throttle
-        } else {
-          speed = steer - speed;                // Reverse driving: in this case steer = Brake, speed = Throttle
-        }
-        steer = 0;                              // Do not apply steering to avoid side effects if STEER_COEFFICIENT is NOT 0
-      }
-      #endif
+      // // ####### VARIANT_HOVERCAR #######
+      // #ifdef VARIANT_HOVERCAR
+      // if (inIdx == CONTROL_ADC) {               // Only use use implementation below if pedals are in use (ADC input)
+      //   if (!MultipleTapBrake.b_multipleTap) {  // Check driving direction
+      //     speed = steer + speed;                // Forward driving: in this case steer = Brake, speed = Throttle
+      //   } else {
+      //     speed = steer - speed;                // Reverse driving: in this case steer = Brake, speed = Throttle
+      //   }
+      //   steer = 0;                              // Do not apply steering to avoid side effects if STEER_COEFFICIENT is NOT 0
+      // }
+      // #endif
 
-      // ####### MIXER #######
-      // cmdR = CLAMP((int)(speed * SPEED_COEFFICIENT -  steer * STEER_COEFFICIENT), INPUT_MIN, INPUT_MAX);
-      // cmdL = CLAMP((int)(speed * SPEED_COEFFICIENT +  steer * STEER_COEFFICIENT), INPUT_MIN, INPUT_MAX);
-      mixerFcn(speed << 4, steer << 4, &cmdR, &cmdL);   // This function implements the equations above
+      // // ####### MIXER #######
+      // // cmdR = CLAMP((int)(speed * SPEED_COEFFICIENT -  steer * STEER_COEFFICIENT), INPUT_MIN, INPUT_MAX);
+      // // cmdL = CLAMP((int)(speed * SPEED_COEFFICIENT +  steer * STEER_COEFFICIENT), INPUT_MIN, INPUT_MAX);
+      // mixerFcn(speed << 4, steer << 4, &cmdR, &cmdL);   // This function implements the equations above
 
       // ####### SET OUTPUTS (if the target change is less than +/- 100) #######
       #ifdef INVERT_R_DIRECTION

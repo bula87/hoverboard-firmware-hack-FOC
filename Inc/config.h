@@ -554,14 +554,15 @@
 #ifdef VARIANT_ONEWHEEL
   #define FLASH_WRITE_KEY     0x1008          // Flash memory writing key. Change this key to ignore the input calibrations from the flash memory and use the ones in config.h
   #define SIDEBOARD_SERIAL_USART2 0           // left sensor board cable. Number indicates priority for dual-input. Disable if ADC or PPM is used! 
-  #define FEEDBACK_SERIAL_USART2
+  //#define FEEDBACK_SERIAL_USART2
   // Using only one sensor connected to left connector
   //#define SIDEBOARD_SERIAL_USART3 0           // right sensor board cable. Number indicates priority for dual-input. Disable if I2C (nunchuk or lcd) is used!
   //#define FEEDBACK_SERIAL_USART3
   
   // Trying to controll the board similar to original onewheel in TORQUE Mode
-  #undef  CTRL_MOD_REQ
-  #define CTRL_MOD_REQ        TRQ_MODE  // SKATEBOARD works best in TORQUE Mode
+  //#undef  CTRL_MOD_REQ
+  //#define CTRL_MOD_REQ        TRQ_MODE  // SKATEBOARD works best in TORQUE Mode
+  #define STANDSTILL_HOLD_ENABLE
   
   // Using right sensor connector for debug
   #define DEBUG_SERIAL_USART3         // right sensor cable debug
